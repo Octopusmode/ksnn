@@ -13,7 +13,7 @@ import cv2 as cv
 import time
 from flask import Flask, render_template, Response
 
-cap_num = 0
+cap_num = ''
 
 GRID0 = 13
 GRID1 = 26
@@ -151,7 +151,7 @@ def draw(image, boxes, scores, classes):
     for box, score, cl in zip(boxes, scores, classes):
         x, y, w, h = box
         print('class: {}, score: {}'.format(CLASSES[cl], score))
-        print('box coordinate left,top,right,down: [{}, {}, {}, {}]'.format(x, y, x+w, y+h))
+        # print('box coordinate left,top,right,down: [{}, {}, {}, {}]'.format(x, y, x+w, y+h))
         x *= image.shape[1]
         y *= image.shape[0]
         w *= image.shape[1]
@@ -170,12 +170,19 @@ def draw(image, boxes, scores, classes):
 
 def gen_frames():
     cap = cv.VideoCapture(cap_num)
-    cap.set(3,1920)
-    cap.set(4,1080)
+    # cap.set(3,1920)
+    # cap.set(4,1080)
+    # cap.set(3,1024)
+    # cap.set(4,768)
+    
+    frame_num = 0
+    
     while(1):
+        frame_num += 1
         start_all = time.time()
         cv_img = list()
         ret,img = cap.read()
+        img = cv.resize(img, (1024, 768), cv.INTER_CUBIC)
         cv_img.append(img)
         start = time.time()
         '''
@@ -198,16 +205,20 @@ def gen_frames():
         input_data.append(np.transpose(input2_data, (2, 3, 0, 1)))
 
         boxes, classes, scores = yolov3_post_process(input_data)
-
-        if boxes is not None:
-            draw(img, boxes, scores, classes)
-
-        ret, buffer = cv.imencode('.jpg', img)
-        frame = buffer.tobytes()
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-        end_all = time.time()
-        print('one frame time : ', end_all - start_all)
+        
+        print("FPS: ", 1.0 / (time.time() - start_all))
+        
+        if frame_num % 5 == 0:
+            if boxes is not None:
+                draw(img, boxes, scores, classes)
+            print('rendered')
+            ret, buffer = cv.imencode('.jpg', img)
+            frame = buffer.tobytes()
+            yield (b'--frame\r\n'
+                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            end_all = time.time()
+        # print('one frame time : ', end_all - start_all)
+        
     cap.release()
 
 rstp = Flask(__name__)
@@ -238,7 +249,7 @@ if __name__ == '__main__':
     else:
         sys.exit("NBG file not found !!! Please use format: --model")
     if args.device :
-        cap_num = int(args.device)
+        cap_num = str(args.device)
     else :
         sys.exit("video device not found !!! Please use format :--device ")
     if args.library :
